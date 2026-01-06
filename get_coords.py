@@ -30,29 +30,20 @@ if sys.platform.startswith('linux'):  # for my VM
 ##################################################################
 ##################################################################
 
-if hasattr(time, "tzset"):
-    os.environ["TZ"] = "Europe/Brussels"
-    time.tzset()
-    
-now = time.strftime("%d.%m.%Y - %H:%M:%S", time.localtime())
+### Get trains IDs from DB ###
 
-print(f'\nStart at: {now}')
-
-### Get stations IDs from DB ###
-
-stations_ids = []
+TRAINS_IDS = []
  
 try:
-    # Unpacking a dictionary into keyword arguments!
     with mariadb.connect(**SQL_CONN_CONFIG) as conn:
 
-        cur = conn.cursor(dictionary=True)
+        cursor = conn.cursor()
 
-        cur.execute(f'SELECT * FROM stations')
+        #cursor.execute(f'SELECT train_id FROM all_trains WHERE train_status = 1 ORDER BY updated_at DESC')
 
-        rows = cur.fetchall()
-        
-        stations_ids = [row['station_id'] for row in rows]
+        cursor.execute(f'SELECT train_id FROM all_trains WHERE data_generation = 7 ORDER BY updated_at DESC')
+
+        TRAINS_IDS = [row[0] for row in cursor.fetchall()]
         
 except mariadb.Error as e:
     print(f'MariaDB error: {e}')
@@ -61,40 +52,7 @@ except mariadb.Error as e:
 ##################################################################
 ##################################################################
 
-### Function to parse liveboards data
-
-def get_trains_ids(liveboard_data):
-
-    trains_ids = set()
-    
-    for section in ('departures', 'arrivals'):
-        items = liveboard_data.get(section, {}).get('departure') \
-                or liveboard_data.get(section, {}).get('arrival')
-    
-        if not items:
-            continue
-    
-        if isinstance(items, dict):
-            items = [items]
-    
-        for item in items:
-            vid = (
-                item.get('vehicle')
-                or item.get('vehicleinfo', {}).get('name')
-            )
-            if vid:
-                trains_ids.add(vid)
-
-    return trains_ids
-
-##################################################################
-##################################################################
-##################################################################
-
-
-NEW_TRAINS_IDS = set()
-
-resource_path = 'liveboard'
+resource_path = 'vehicle'
 
 url = f'{config.BASE_URL}/{resource_path}/'
 
@@ -105,8 +63,6 @@ lock = fasteners.InterProcessLock(lock_path)
 if not lock.acquire(blocking=False):
     print('Process blocked')
     raise SystemExit(1)
-
-
 
 try:
 
@@ -123,9 +79,9 @@ try:
     #########################
     
     if( DEBUG ):
-        max_count = 40
+        max_count = 50
     else:
-        max_count = len(stations_ids)
+        max_count = len(TRAINS_IDS)
     
     
     if(SHOW_PROGRESS_BAR):
@@ -146,7 +102,7 @@ try:
         print('Progress(%): 0', end='', flush=True)
         
         
-    for station_id in stations_ids:
+    for train_id in TRAINS_IDS:
     
         s_count += 1
         
@@ -166,13 +122,22 @@ try:
 
         params = {}
         
-        params['id'] = station_id
+        params['id'] = train_id
         
-        liveboard_data = services.iRailRequest(url,params)
-        
-        NEW_TRAINS_IDS.update( get_trains_ids(liveboard_data) )
+        train_data = services.iRailRequest(url,params)
         
         time.sleep(0.5)
+        
+        if train_data is None:
+            continue
+        
+        vehicleinfo = train_data.get("vehicleinfo") or {}
+        
+        lon = float(vehicleinfo.get("locationX") or 0)
+        lat = float(vehicleinfo.get("locationY") or 0)
+        
+        if lon and lat:
+            print(f'\nCOORDINATES: {lon} - {lat}\n') 
 
 finally:
     
@@ -181,48 +146,9 @@ finally:
 if(SHOW_SIMPLE_PROGRESS):
     print('\n')
 
-print(f'\nTRAINS FOUND: {len(NEW_TRAINS_IDS)}\n')
-
 ##################################################################
 ##################################################################
 ##################################################################
-
-data = [(train_id,) for train_id in NEW_TRAINS_IDS]
-
-try:
-
-    with mariadb.connect(**SQL_CONN_CONFIG) as conn:
-
-        conn.autocommit = False
-        
-        cursor = conn.cursor()
-        
-        cursor.execute('DELETE FROM new_trains')
-        
-        cursor.executemany(
-            'INSERT INTO new_trains (train_id) VALUES (%s)',
-            data
-        )
-        
-        conn.commit()
-                
-except mariadb.Error as e:
-    
-    print(f'DB error: {e}')
-
-##################################################################
-##################################################################
-##################################################################
-
-combine_trains.combine_databases()
-
-##################################################################
-##################################################################
-##################################################################
-
-end_time = time.strftime("%d.%m.%Y - %H:%M:%S", time.localtime())
-
-print(f'\nFinished at: {end_time}')
 
 print('\nJob finished!\n')
 

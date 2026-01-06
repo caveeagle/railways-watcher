@@ -12,6 +12,8 @@ import config
 
 def iRailRequest(url:str, params=None, etag=None):
     
+    IGNORE_404_ERROR = 0
+    
     if params is None:
         params = {}
     
@@ -43,11 +45,19 @@ def iRailRequest(url:str, params=None, etag=None):
         # Rate limit exceeded (too many requests per second)
         print('Error: Too Many Requests (429). You are being rate limited.')
         raise SystemExit()
+
+    if response.status_code == 404:
+        if not IGNORE_404_ERROR:
+            print('404:URL not found')
+            raise SystemExit()
+        else:
+            return None        
     
     elif response.status_code >= 500:
         # Server-side error on iRail infrastructure
         print(f'Server error: HTTP {response.status_code}')
-        raise SystemExit()
+        #raise SystemExit()
+        return None
         
     elif response.status_code != 200:
         # Any unexpected non-success status code
