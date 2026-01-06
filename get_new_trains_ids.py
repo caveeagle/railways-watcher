@@ -157,12 +157,29 @@ print(f'\nTRAINS FOUND: {len(NEW_TRAINS_IDS)}\n')
 ##################################################################
 ##################################################################
 
+data = [(train_id,) for train_id in NEW_TRAINS_IDS]
 
+try:
 
+    with mariadb.connect(**SQL_CONN_CONFIG) as conn:
 
-
-
+        conn.autocommit = False
+        
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM new_trains')
+        
+        cursor.executemany(
+            'INSERT INTO new_trains (train_id) VALUES (%s)',
+            data
+        )
+        
+        conn.commit()
+                
+except mariadb.Error as e:
     
+    print(f"DB error: {e}")
+
 ##################################################################
 ##################################################################
 ##################################################################
