@@ -1,4 +1,5 @@
 import sys
+import time
 
 import fasteners
 import mariadb
@@ -24,8 +25,12 @@ if sys.platform.startswith("linux"):  # for my VM
 
 
 ##################################################################
+##################################################################
+##################################################################
 
-ids = []
+### Get stations IDs from DB ###
+
+stations_ids = []
  
 try:
     # Unpacking a dictionary into keyword arguments!
@@ -37,12 +42,47 @@ try:
 
         rows = cur.fetchall()
         
-        ids = [row['station_id'] for row in rows]
+        stations_ids = [row['station_id'] for row in rows]
         
 except mariadb.Error as e:
     print(f"MariaDB error: {e}")
 
 ##################################################################
+##################################################################
+##################################################################
+
+### Function to parse liveboards data
+
+def get_trains_ids(liveboard_data):
+
+    trains_ids = set()
+    
+    for section in ("departures", "arrivals"):
+        items = liveboard_data.get(section, {}).get("departure") \
+                or liveboard_data.get(section, {}).get("arrival")
+    
+        if not items:
+            continue
+    
+        if isinstance(items, dict):
+            items = [items]
+    
+        for item in items:
+            vid = (
+                item.get("vehicle")
+                or item.get("vehicleinfo", {}).get("name")
+            )
+            if vid:
+                trains_ids.add(vid)
+
+    return trains_ids
+
+##################################################################
+##################################################################
+##################################################################
+
+
+NEW_TRAINS_IDS = set()
 
 resource_path = 'liveboard'
 
@@ -53,46 +93,78 @@ lock_path = services.get_lock_path('irail')
 lock = fasteners.InterProcessLock(lock_path)
 
 if not lock.acquire(blocking=False):
-    print('Process blocked: too many requests, please wait...')
+    print('Process blocked')
     raise SystemExit(1)
 
+
+
 try:
+
+    s_count = 1
     
-    params = {}
+    DEBUG = 1
     
-    params['id'] = 'BE.NMBS.008811940'
+    SHOW_PROGRESS = 1
     
-    liveboard_data = services.iRailRequest(url,params)
+    if( DEBUG ):
+        max_count = 20
+    else:
+        max_count = len(stations_ids)
+    
+    
+    if(SHOW_PROGRESS):
+
+        from tqdm import tqdm
+        
+        pbar = tqdm(
+            total=max_count,
+            desc="Processing",
+            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} ({percentage:3.0f}%)"
+        )
+        
+        import atexit
+        
+        atexit.register(pbar.close)  # Wow!
+        
+        
+    for station_id in stations_ids:
+    
+        s_count += 1
+        
+        pbar.update(1)
+        
+        if( DEBUG ):
+            if( s_count>max_count ):
+                break
+
+        params = {}
+        
+        params['id'] = station_id
+        
+        liveboard_data = services.iRailRequest(url,params)
+        
+        NEW_TRAINS_IDS.update( get_trains_ids(liveboard_data) )
+        
+        time.sleep(0.5)
 
 finally:
+    
     lock.release()    
 
+print(f'\nTRAINS FOUND: {len(NEW_TRAINS_IDS)}\n')
+
+##################################################################
+##################################################################
 ##################################################################
 
 
-vehicle_ids = set()
-
-for section in ("departures", "arrivals"):
-    items = liveboard_data.get(section, {}).get("departure") \
-            or liveboard_data.get(section, {}).get("arrival")
-
-    if not items:
-        continue
-
-    if isinstance(items, dict):
-        items = [items]
-
-    for item in items:
-        vid = (
-            item.get("vehicle")
-            or item.get("vehicleinfo", {}).get("name")
-        )
-        if vid:
-            vehicle_ids.add(vid)
 
 
-print(vehicle_ids)
+
+
     
+##################################################################
+##################################################################
 ##################################################################
 
 print('\nJob finished!')
