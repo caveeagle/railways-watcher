@@ -40,7 +40,7 @@ if not lock.acquire(blocking=False):
 
 try:
 
-    data, etag = services.iRailRequest(url)
+    data = services.iRailRequest(url)
 
 finally:
     lock.release()    

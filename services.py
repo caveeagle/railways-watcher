@@ -10,9 +10,13 @@ import config
 
 ##################################################################
 
-def iRailRequest(url:str, etag=None):
+def iRailRequest(url:str, params=None, etag=None):
     
-    params = {'format': 'json', 'lang': 'en'}
+    if params is None:
+        params = {}
+    
+    params['format'] = 'json'
+    params['land'] = 'en'
     
     headers = config.HEADERS
     
@@ -65,7 +69,10 @@ def iRailRequest(url:str, etag=None):
     
     etag = response.headers.get("ETag")
     
-    return data, etag
+    if etag is not None:
+        pass
+    
+    return data
 
 ##################################################################
 
