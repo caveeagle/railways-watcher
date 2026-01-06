@@ -1,5 +1,6 @@
 import sys
 import time
+import os
 
 import fasteners
 import mariadb
@@ -7,6 +8,7 @@ import mariadb
 import config
 import config_secrets
 import services
+import combine_trains
 
 ##################################################################
 
@@ -20,13 +22,21 @@ SQL_CONN_CONFIG = {
     'port': 3306 # by default
 }
 
-if sys.platform.startswith("linux"):  # for my VM
+if sys.platform.startswith('linux'):  # for my VM
     SQL_CONN_CONFIG['host'] = 'localhost'
 
 
 ##################################################################
 ##################################################################
 ##################################################################
+
+if hasattr(time, "tzset"):
+    os.environ["TZ"] = "Europe/Brussels"
+    time.tzset()
+    
+now = time.strftime("%d.%m.%Y - %H:%M:%S", time.localtime())
+
+print(f'\nStart at: {now}')
 
 ### Get stations IDs from DB ###
 
@@ -45,7 +55,7 @@ try:
         stations_ids = [row['station_id'] for row in rows]
         
 except mariadb.Error as e:
-    print(f"MariaDB error: {e}")
+    print(f'MariaDB error: {e}')
 
 ##################################################################
 ##################################################################
@@ -57,9 +67,9 @@ def get_trains_ids(liveboard_data):
 
     trains_ids = set()
     
-    for section in ("departures", "arrivals"):
-        items = liveboard_data.get(section, {}).get("departure") \
-                or liveboard_data.get(section, {}).get("arrival")
+    for section in ('departures', 'arrivals'):
+        items = liveboard_data.get(section, {}).get('departure') \
+                or liveboard_data.get(section, {}).get('arrival')
     
         if not items:
             continue
@@ -69,8 +79,8 @@ def get_trains_ids(liveboard_data):
     
         for item in items:
             vid = (
-                item.get("vehicle")
-                or item.get("vehicleinfo", {}).get("name")
+                item.get('vehicle')
+                or item.get('vehicleinfo', {}).get('name')
             )
             if vid:
                 trains_ids.add(vid)
@@ -102,9 +112,15 @@ try:
 
     s_count = 1
     
-    DEBUG = 1
+    #########################
     
-    SHOW_PROGRESS = 1
+    DEBUG = 0
+    
+    SHOW_PROGRESS_BAR = 1
+    
+    SHOW_SIMPLE_PROGRESS = 0
+
+    #########################
     
     if( DEBUG ):
         max_count = 20
@@ -112,27 +128,38 @@ try:
         max_count = len(stations_ids)
     
     
-    if(SHOW_PROGRESS):
+    if(SHOW_PROGRESS_BAR):
 
         from tqdm import tqdm
         
         pbar = tqdm(
             total=max_count,
-            desc="Processing",
-            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} ({percentage:3.0f}%)"
+            desc='Processing',
+            bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} ({percentage:3.0f}%)'
         )
         
         import atexit
         
         atexit.register(pbar.close)  # Wow!
+    
+    if(SHOW_SIMPLE_PROGRESS):
+        print('Progress(%): 0', end='', flush=True)
         
         
     for station_id in stations_ids:
     
         s_count += 1
         
-        pbar.update(1)
-        
+        if(SHOW_PROGRESS_BAR):
+            pbar.update(1)
+            
+        if(SHOW_SIMPLE_PROGRESS):
+            p_count = s_count*100//max_count
+            if( (p_count%5 == 0)and(p_count%10 != 0) ):            
+                print('.', end='', flush=True)
+            if( p_count%10 == 0 ):
+                print(p_count//10, end='', flush=True)            
+            
         if( DEBUG ):
             if( s_count>max_count ):
                 break
@@ -150,6 +177,9 @@ try:
 finally:
     
     lock.release()    
+
+if(SHOW_SIMPLE_PROGRESS):
+    print('\n')
 
 print(f'\nTRAINS FOUND: {len(NEW_TRAINS_IDS)}\n')
 
@@ -178,11 +208,21 @@ try:
                 
 except mariadb.Error as e:
     
-    print(f"DB error: {e}")
+    print(f'DB error: {e}')
 
 ##################################################################
 ##################################################################
 ##################################################################
 
-print('\nJob finished!')
+combine_trains.combine_databases()
+
+##################################################################
+##################################################################
+##################################################################
+
+end_time = time.strftime("%d.%m.%Y - %H:%M:%S", time.localtime())
+
+print(f'\nFinished at: {end_time}')
+
+print('\nJob finished!\n')
 
