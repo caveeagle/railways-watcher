@@ -1,3 +1,4 @@
+import sys
 
 import fasteners
 import mariadb
@@ -18,7 +19,12 @@ SQL_CONN_CONFIG = {
     'port': 3306 # by default
 }
 
+if sys.platform.startswith("linux"):  # for my VM
+    SQL_CONN_CONFIG['host'] = 'localhost'
+
+
 ##################################################################
+
 
 resource_path = 'stations'
 
