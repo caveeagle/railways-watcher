@@ -25,6 +25,13 @@ if sys.platform.startswith("linux"):  # for my VM
 
 ##################################################################
 
+BLOCK_TABLE = 1  # Please don't run this script !
+
+if BLOCK_TABLE:
+    
+    print("\nPlease don't run this script!\n")
+    raise SystemExit(1)
+    
 
 resource_path = 'stations'
 
