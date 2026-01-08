@@ -28,21 +28,37 @@ if sys.platform.startswith("linux"):  # for my VM
 ##################################################################
 ##################################################################
 
-coords = []
+SQL_REQUEST = '''
+                SELECT
+                    stations.lon AS lon,
+                    stations.lat AS lat,
+                    delays.avg_delay AS avg_delay,
+                    delays.share_delayed AS share_delayed
+                FROM delays
+                JOIN stations
+                  ON stations.ID = delays.station_ID
+                WHERE delays.update_id = 5
+                ORDER BY stations.station_id
+'''
+
+STATIONS_DATA = []
 
 try:
     with mariadb.connect(**SQL_CONN_CONFIG) as conn:
 
         cur = conn.cursor(dictionary=True)
 
-        cur.execute(f'SELECT * FROM stations')
+        cur.execute(SQL_REQUEST)
 
         rows = cur.fetchall()
         
-        coords = [(row['lon'], row['lat']) for row in rows]
+        STATIONS_DATA.append((row['lon'], row['lat'], row['avg_delay'], row['share_delayed']))
         
 except mariadb.Error as e:
     print(f"MariaDB error: {e}")
+
+print(STATIONS_DATA)
+raise SystemExit()
 
 ##################################################################
 ##################################################################
