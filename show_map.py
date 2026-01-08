@@ -123,14 +123,15 @@ PNG_INPUT_FILE   = 'images/base_belgium_map.png'
 GEOREF_JSON_FILE = 'images/base_belgium_map.georef.json'
 PNG_OUTPUT_FILE  = 'images/main_map.png'
 
-if os.path.isfile(RELATIVE_PATH+'./'):
+if os.path.isfile('./'+PNG_INPUT_FILE):
     FULL_PATH = './'     
 else:
+    # In case of CRONTAB executive - need an abs. path
     FULL_PATH = config_secrets.PROJECT_PATH+'/'    
     
 PNG_INPUT = FULL_PATH+PNG_INPUT_FILE
-GEOREF_JSON = FULL_PATH+GEOREF_JSON
-PNG_OUTPUT = FULL_PATH+PNG_OUTPUT
+GEOREF_JSON = FULL_PATH+GEOREF_JSON_FILE
+PNG_OUTPUT = FULL_PATH+PNG_OUTPUT_FILE
 
 ##################################################################
 
