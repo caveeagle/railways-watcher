@@ -12,7 +12,7 @@ import config
 
 def iRailRequest(url:str, params=None, etag=None):
     
-    IGNORE_404_ERROR = 0
+    IGNORE_404_ERROR = 1
     
     if params is None:
         params = {}

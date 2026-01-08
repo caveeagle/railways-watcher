@@ -83,18 +83,17 @@ if not lock.acquire(blocking=False):
     raise SystemExit(1)
 
 try:
+    #########################
+    
+    DEBUG = 0
+    
+    SHOW_PROGRESS_BAR = 1
+    
+    SHOW_SIMPLE_PROGRESS = 0
 
+    #########################
+    
     s_count = 1
-    
-    #########################
-    
-    DEBUG = 1
-    
-    SHOW_PROGRESS_BAR = 0
-    
-    SHOW_SIMPLE_PROGRESS = 1
-
-    #########################
     
     if( DEBUG ):
         max_count = 40
@@ -144,6 +143,10 @@ try:
         liveboard_data = services.iRailRequest(url,params)
         
         time.sleep(0.5)
+
+        if liveboard_data is None:
+            continue
+
         
         ##################################################
         ##################################################
