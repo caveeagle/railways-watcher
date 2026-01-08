@@ -216,6 +216,7 @@ if(SHOW_SIMPLE_PROGRESS):
 ##################################################################
 ##################################################################
 
+print('Add data to DB...')
 
 try:
     with mariadb.connect(**SQL_CONN_CONFIG) as conn:
@@ -240,7 +241,11 @@ try:
                 """,
                 delays_data,
             )
-
+            
+            inserted = cur.rowcount
+            
+            print(f'Inserted {inserted} records!')
+            
         # commit in success only
         conn.commit()
 
