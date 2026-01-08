@@ -89,7 +89,7 @@ try:
     
     SHOW_PROGRESS_BAR = 0
     
-    SHOW_SIMPLE_PROGRESS = 1
+    SHOW_SIMPLE_PROGRESS = 0
 
     #########################
     

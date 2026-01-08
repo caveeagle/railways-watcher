@@ -28,65 +28,22 @@ if sys.platform.startswith("linux"):  # for my VM
 ##################################################################
 ##################################################################
 
-update_id = 5  # for example
-
-SQL_REQUEST = f'''
-                SELECT
-                    stations.lon AS lon,
-                    stations.lat AS lat,
-                    delays.avg_delay AS avg_delay,
-                    delays.share_delayed AS share_delayed
-                FROM delays
-                JOIN stations
-                  ON stations.ID = delays.station_ID
-                WHERE delays.update_id = {update_id}
-                ORDER BY stations.station_id
-'''
-
-STATIONS_DATA = []
+coords = []
 
 try:
+    # Unpacking a dictionary into keyword arguments!
     with mariadb.connect(**SQL_CONN_CONFIG) as conn:
 
         cur = conn.cursor(dictionary=True)
 
-        cur.execute(SQL_REQUEST)
+        cur.execute(f'SELECT * FROM stations')
 
         rows = cur.fetchall()
         
-        STATIONS_DATA = [(row['lon'], row['lat'], row['avg_delay'], row['share_delayed']) for row in rows]
+        coords = [(row['lon'], row['lat']) for row in rows]
         
 except mariadb.Error as e:
     print(f"MariaDB error: {e}")
-
-##################################################################
-##################################################################
-##################################################################
-
-def get_station_status(avg_delay,share_delayed):
-    
-    if ( avg_delay == 0 ):
-        return 0  # No delays, code green
-
-    if ( avg_delay < 10 ):
-        return 1  # Light delays
-    
-    #############################
-    
-    if( (10 <= avg_delay < 15)  and (share_delayed > 450) ) :
-        return 2  # Middle
-
-    if( (10 <= avg_delay < 15)  and (share_delayed <= 450) ) :
-        return 1  # Light
-
-    if( (avg_delay > 15) and (share_delayed < 450) ):
-        return 3  # Severe
-
-    if( (avg_delay > 15) and (share_delayed > 450) ):
-        return 4  # Severe
-
-
-raise SystemExit()
 
 ##################################################################
 ##################################################################
