@@ -1,6 +1,5 @@
 import sys
 import time
-import os
 
 import fasteners
 import mariadb
@@ -29,17 +28,17 @@ if sys.platform.startswith('linux'):  # for my VM
 ##################################################################
 ##################################################################
 
-if hasattr(time, "tzset"):
-    os.environ["TZ"] = "Europe/Brussels"
-    time.tzset()
-    
 now = time.strftime("%d.%m.%Y - %H:%M:%S", time.localtime())
 
 print(f'\nStart at: {now}')
 
 ### Get stations IDs from DB ###
 
-stations_ids = []
+iRail_stations_ids = []  # iRail stations id, like BE.NMBS.008831039
+
+DB_stations_IDs = []  # ID into table 'stations', just int 
+
+stations_ids = []  # tuple of both types ids
  
 try:
     # Unpacking a dictionary into keyword arguments!
@@ -51,59 +50,26 @@ try:
 
         rows = cur.fetchall()
         
-        stations_ids = [row['station_id'] for row in rows]
+        iRail_stations_ids = [row['station_id'] for row in rows]
+        
+        DB_stations_IDs = [row['ID'] for row in rows]
+        
         
 except mariadb.Error as e:
     print(f'MariaDB error: {e}')
 
+assert len(iRail_stations_ids) == len(DB_stations_IDs), 'Error in array DB_stations_IDs'
+
+stations_ids = list(zip(iRail_stations_ids, DB_stations_IDs))
+
 ##################################################################
 ##################################################################
 ##################################################################
 
-try:
-    with mariadb.connect(**SQL_CONN_CONFIG) as conn:
-        
-        with conn.cursor() as cur:
+delays_info = []
 
-            # 1. insert update_runs
-            cur.execute(
-                "INSERT INTO update_runs (update_time) VALUES (NOW())"
-            )
-            update_id = cur.lastrowid
-
-            # 2. prepare delays data
-            delays_data = [
-                (1, update_id, 120),
-                (2, update_id, 0),
-                (3, update_id, 45),
-            ]
-
-            # 3. bulk insert delays
-            cur.executemany(
-                """
-                INSERT INTO delays (station_id, update_id, avg_delay)
-                VALUES (?, ?, ?)
-                """,
-                delays_data,
-            )
-
-        # commit in success only
-        conn.commit()
-
-except mariadb.Error as e:
-    conn.rollback()  # Just in case
-    print(f'MariaDB error: {e}')
-    raise
+###  Obtain delays from iRail API  ###
     
-
-
-
-raise SystemExit(1)
-
-##################################################################
-##################################################################
-##################################################################
-
 resource_path = 'liveboard'
 
 url = f'{config.BASE_URL}/{resource_path}/'
@@ -116,8 +82,6 @@ if not lock.acquire(blocking=False):
     print('Process blocked')
     raise SystemExit(1)
 
-
-
 try:
 
     s_count = 1
@@ -128,12 +92,12 @@ try:
     
     SHOW_PROGRESS_BAR = 0
     
-    SHOW_SIMPLE_PROGRESS = 0
+    SHOW_SIMPLE_PROGRESS = 1
 
     #########################
     
     if( DEBUG ):
-        max_count = 20
+        max_count = 40
     else:
         max_count = len(stations_ids)
     
@@ -155,7 +119,7 @@ try:
         print('Progress(%): 0', end='', flush=True)
         
         
-    for station_id in stations_ids:
+    for (station_id, db_station_id) in stations_ids:
     
         s_count += 1
         
@@ -212,8 +176,8 @@ try:
         # Delays >= 2 minutes (filter list)
         delays_2min_plus_sec = [d for d in delays_sec if d >= 120]
         
-        print(f"Average delay: {avg_delay_min:.2f} min")
-        print(f"Count delays >= 2 min: {len(delays_2min_plus_sec)}")
+        #print(f"Average delay: {avg_delay_min:.2f} min")
+        #print(f"Count delays >= 2 min: {len(delays_2min_plus_sec)}")
 
         # delays_sec is already built (list of non-negative delays in seconds)
         
@@ -225,11 +189,21 @@ try:
         avg_delay_delayed_sec = (sum(delayed_2min) / len(delayed_2min)) if delayed_2min else 0.0
         avg_delay_delayed_min = avg_delay_delayed_sec / 60
         
-        print(f"Share delays >= 2 min: {share_2min:.3f}")
-        print(f"Avg delay among >= 2 min trains: {avg_delay_delayed_min:.2f} min")
+        #print(f"Share delays >= 2 min: {share_2min:.3f}")
+        #print(f"Avg delay among >= 2 min trains: {avg_delay_delayed_min:.0f} min")
+        #print('\n\n\n')
         
-        print('\n\n\n')
+        share_delayed = int(share_2min*1000)
         
+        avg_delay = int(avg_delay_delayed_min)
+        
+        #############################################################
+        
+        ###   Collect delays info  ###                                   
+        
+        delays_info.append((db_station_id, avg_delay, share_delayed))
+        
+        #############################################################
 
 finally:
     
@@ -241,6 +215,39 @@ if(SHOW_SIMPLE_PROGRESS):
 ##################################################################
 ##################################################################
 ##################################################################
+
+
+try:
+    with mariadb.connect(**SQL_CONN_CONFIG) as conn:
+        
+        with conn.cursor() as cur:
+
+            # 1. insert update_runs
+            cur.execute(
+                "INSERT INTO update_runs (update_time) VALUES (NOW())"
+            )
+            update_id = cur.lastrowid
+
+            # 2. prepare delays data
+            
+            delays_data = [(a, update_id, b, c) for (a, b, c) in delays_info ]
+
+            # 3. bulk insert delays
+            cur.executemany(
+                """
+                INSERT INTO delays (station_id, update_id, avg_delay, share_delayed)
+                VALUES (?, ?, ?, ?)
+                """,
+                delays_data,
+            )
+
+        # commit in success only
+        conn.commit()
+
+except mariadb.Error as e:
+    conn.rollback()  # Just in case
+    print(f'MariaDB error: {e}')
+    raise
 
 
 ##################################################################
