@@ -32,6 +32,11 @@ def iRailRequest(url:str, params=None, etag=None):
         ########################################################
     
     except requests.exceptions.Timeout:
+        print('Timeout exceeded!')
+        if IGNORE_ERRORS:
+            return None
+        else:     
+            raise SystemExit(1)
     
     
     except requests.exceptions.RequestException as e:
