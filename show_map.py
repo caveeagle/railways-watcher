@@ -31,7 +31,6 @@ if sys.platform.startswith("linux"):  # for my VM
 coords = []
 
 try:
-    # Unpacking a dictionary into keyword arguments!
     with mariadb.connect(**SQL_CONN_CONFIG) as conn:
 
         cur = conn.cursor(dictionary=True)
