@@ -124,7 +124,7 @@ GEOREF_JSON_FILE = 'images/base_belgium_map.georef.json'
 PNG_OUTPUT_FILE  = 'images/main_map.png'
 
 if os.path.isfile(RELATIVE_PATH+'./'):
-    FULL_PATH = RELATIVE_PATH     
+    FULL_PATH = './'     
 else:
     FULL_PATH = config_secrets.PROJECT_PATH+'/'    
     
